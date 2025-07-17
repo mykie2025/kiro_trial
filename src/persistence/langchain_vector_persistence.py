@@ -537,7 +537,9 @@ class LangChainVectorPersistence:
             
             # Create memory-enhanced chain if memory context is enabled
             if include_memory_context:
-                def memory_enhanced_chain(inputs: Dict[str, Any]) -> Dict[str, Any]:
+                from langchain_core.runnables import RunnableLambda
+                
+                def memory_enhanced_chain(inputs: Dict[str, Any]) -> Any:
                     """Enhanced chain that includes memory context."""
                     # Get relevant memories for the input
                     input_text = inputs.get("input", "")
@@ -564,8 +566,8 @@ class LangChainVectorPersistence:
                     
                     return base_chain.invoke(enhanced_inputs)
                 
-                # Wrap the enhanced chain
-                chain = memory_enhanced_chain
+                # Wrap the enhanced chain as a RunnableLambda
+                chain = RunnableLambda(memory_enhanced_chain)
             else:
                 chain = base_chain
             

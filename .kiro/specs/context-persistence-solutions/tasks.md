@@ -34,6 +34,14 @@
   - Add comprehensive error handling validation in tests
   - _Requirements: 6.2, 6.5_
 
+- [x] 2.5 Create example usage demonstration
+  - Create example script showing complete LangChain vector persistence workflow
+  - Demonstrate memory saving, searching, and conversation chain usage
+  - Include practical examples with different memory types and user scenarios
+  - Add example output and expected results documentation
+  - Write example that can be run independently for testing and demonstration
+  - _Requirements: 6.5, 6.6_
+
 - [ ] 3. Create Neo4j graph persistence system (Secondary)
 - [ ] 3.1 Implement Docker container management
   - Create Neo4jDockerManager class for container lifecycle management

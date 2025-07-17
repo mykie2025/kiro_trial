@@ -46,6 +46,7 @@ src/
 3. **Include comprehensive tests**: Write both unit and integration tests
 4. **Add proper logging**: Use structured logging with appropriate levels
 5. **Handle errors gracefully**: Implement proper exception handling and validation
+6. **Documentation policy**: Never create or update README.md files unless explicitly requested by the user
 
 ### For LangChain components:
 - Use `InMemoryVectorStore` with OpenAI embeddings
