@@ -20,6 +20,7 @@ class TestLangChainVectorPersistence:
         # Mock config object
         mock_config = Mock()
         mock_config.embedding_model = "text-embedding-3-small"
+        mock_config.llm_model = "gpt-3.5-turbo"
         mock_config.openai_api_key = "test-key"
         mock_config.openai_base_url = "https://api.openai.com/v1"
         
@@ -31,9 +32,10 @@ class TestLangChainVectorPersistence:
         
         return config_manager
     
+    @patch('src.persistence.langchain_vector_persistence.ChatOpenAI')
     @patch('src.persistence.langchain_vector_persistence.OpenAIEmbeddings')
     @patch('src.persistence.langchain_vector_persistence.InMemoryVectorStore')
-    def test_initialization(self, mock_vector_store, mock_embeddings, mock_config_manager):
+    def test_initialization(self, mock_vector_store, mock_embeddings, mock_chat_openai, mock_config_manager):
         """Test vector persistence initialization."""
         # Create instance
         persistence = LangChainVectorPersistence(mock_config_manager)
@@ -43,9 +45,10 @@ class TestLangChainVectorPersistence:
         mock_embeddings.assert_called_once()
         mock_vector_store.assert_called_once()
     
+    @patch('src.persistence.langchain_vector_persistence.ChatOpenAI')
     @patch('src.persistence.langchain_vector_persistence.OpenAIEmbeddings')
     @patch('src.persistence.langchain_vector_persistence.InMemoryVectorStore')
-    def test_save_memory_success(self, mock_vector_store_class, mock_embeddings, mock_config_manager):
+    def test_save_memory_success(self, mock_vector_store_class, mock_embeddings, mock_chat_openai, mock_config_manager):
         """Test successful memory saving."""
         # Setup mocks
         mock_vector_store = Mock()
@@ -76,9 +79,10 @@ class TestLangChainVectorPersistence:
         assert 'timestamp' in doc.metadata
         assert doc.metadata['source'] == "test"
     
+    @patch('src.persistence.langchain_vector_persistence.ChatOpenAI')
     @patch('src.persistence.langchain_vector_persistence.OpenAIEmbeddings')
     @patch('src.persistence.langchain_vector_persistence.InMemoryVectorStore')
-    def test_save_memory_validation_error(self, mock_vector_store_class, mock_embeddings, mock_config_manager):
+    def test_save_memory_validation_error(self, mock_vector_store_class, mock_embeddings, mock_chat_openai, mock_config_manager):
         """Test memory saving with validation errors."""
         persistence = LangChainVectorPersistence(mock_config_manager)
         
@@ -90,9 +94,10 @@ class TestLangChainVectorPersistence:
         with pytest.raises(ValueError, match="User ID cannot be empty"):
             persistence.save_memory("content", "")
     
+    @patch('src.persistence.langchain_vector_persistence.ChatOpenAI')
     @patch('src.persistence.langchain_vector_persistence.OpenAIEmbeddings')
     @patch('src.persistence.langchain_vector_persistence.InMemoryVectorStore')
-    def test_search_memories_success(self, mock_vector_store_class, mock_embeddings, mock_config_manager):
+    def test_search_memories_success(self, mock_vector_store_class, mock_embeddings, mock_chat_openai, mock_config_manager):
         """Test successful memory search."""
         # Setup mocks
         mock_vector_store = Mock()
@@ -134,9 +139,10 @@ class TestLangChainVectorPersistence:
         assert call_args[1]['k'] == 3
         assert callable(call_args[1]['filter'])  # Filter should be a function
     
+    @patch('src.persistence.langchain_vector_persistence.ChatOpenAI')
     @patch('src.persistence.langchain_vector_persistence.OpenAIEmbeddings')
     @patch('src.persistence.langchain_vector_persistence.InMemoryVectorStore')
-    def test_search_memories_validation_error(self, mock_vector_store_class, mock_embeddings, mock_config_manager):
+    def test_search_memories_validation_error(self, mock_vector_store_class, mock_embeddings, mock_chat_openai, mock_config_manager):
         """Test memory search with validation errors."""
         persistence = LangChainVectorPersistence(mock_config_manager)
         
@@ -148,9 +154,10 @@ class TestLangChainVectorPersistence:
         with pytest.raises(ValueError, match="User ID cannot be empty"):
             persistence.search_memories("query", "")
     
+    @patch('src.persistence.langchain_vector_persistence.ChatOpenAI')
     @patch('src.persistence.langchain_vector_persistence.OpenAIEmbeddings')
     @patch('src.persistence.langchain_vector_persistence.InMemoryVectorStore')
-    def test_health_check_success(self, mock_vector_store_class, mock_embeddings_class, mock_config_manager):
+    def test_health_check_success(self, mock_vector_store_class, mock_embeddings_class, mock_chat_openai, mock_config_manager):
         """Test successful health check."""
         # Setup mocks
         mock_embeddings = Mock()
@@ -176,9 +183,10 @@ class TestLangChainVectorPersistence:
         assert health_status['test_search_successful'] is True
         assert health_status['total_documents'] == 2
     
+    @patch('src.persistence.langchain_vector_persistence.ChatOpenAI')
     @patch('src.persistence.langchain_vector_persistence.OpenAIEmbeddings')
     @patch('src.persistence.langchain_vector_persistence.InMemoryVectorStore')
-    def test_clear_memories(self, mock_vector_store_class, mock_embeddings, mock_config_manager):
+    def test_clear_memories(self, mock_vector_store_class, mock_embeddings, mock_chat_openai, mock_config_manager):
         """Test memory clearing functionality."""
         persistence = LangChainVectorPersistence(mock_config_manager)
         

@@ -6,26 +6,33 @@
   - Add validation for required OpenAI and Neo4j configuration parameters
   - _Requirements: 4.1, 4.3, 6.1_
 
-- [-] 2. Implement core LangChain vector persistence (MVP Priority)
+- [x] 2. Implement core LangChain vector persistence (MVP Priority)
 - [x] 2.1 Create LangChain vector storage foundation
   - Initialize InMemoryVectorStore with OpenAI embeddings using config from .env
   - Implement basic memory document structure with user_id, timestamp, and metadata
   - Create unit tests for vector store initialization and basic operations
   - _Requirements: 1.1, 1.6, 6.2_
 
-- [ ] 2.2 Implement memory storage and retrieval tools
+- [x] 2.2 Implement memory storage and retrieval tools
   - Create save_recall_memory tool function with user ID filtering and structured metadata
   - Implement search_recall_memories tool with semantic similarity search (top 3 results)
   - Add memory type classification and timestamp tracking
   - Write unit tests for memory save and search operations
   - _Requirements: 1.2, 1.3, 1.4, 6.2_
 
-- [ ] 2.3 Add conversation history management
+- [x] 2.3 Add conversation history management
   - Implement RunnableWithMessageHistory integration for session management
   - Create conversation chain with memory persistence across user sessions
   - Add session ID management and user context isolation
   - Write integration tests for conversation flow with memory
   - _Requirements: 1.5, 6.2_
+
+- [x] 2.4 Fix and enhance test coverage
+  - Update test mocks to handle ChatOpenAI integration
+  - Fix pytest warnings in configuration tests
+  - Ensure all LangChain vector persistence tests pass
+  - Add comprehensive error handling validation in tests
+  - _Requirements: 6.2, 6.5_
 
 - [ ] 3. Create Neo4j graph persistence system (Secondary)
 - [ ] 3.1 Implement Docker container management
@@ -103,3 +110,12 @@
   - Add example usage scenarios and documentation
   - Create final integration tests for complete system functionality
   - _Requirements: 3.6, 6.6_
+
+- [ ] 7. Create agent hook for development activity tracking
+- [ ] 7.1 Set up memory MCP integration hook
+  - Create agent hook that triggers after code changes or task completion
+  - Configure hook to use memory MCP tools to record development activities
+  - Implement automatic graph recording of completed tasks, code changes, and decisions
+  - Add metadata capture for development context (files changed, tests added, issues resolved)
+  - Write hook configuration to track project progress in persistent memory graph
+  - _Requirements: 4.6, 6.6_

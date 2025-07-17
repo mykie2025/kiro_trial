@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "name": "Development Memory Tracking Hook",
+  "description": "Records development activities, completed tasks, and code changes in the memory graph using MCP tools for persistent project context",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.py",
+      "*.md",
+      "*.json",
+      "*.yaml",
+      "*.yml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A project file has been modified. Please use the memory MCP tools to record this development activity in the persistent memory graph. Create entities and relationships for:\n\n1. **File Changes**: Record what file was modified, the type of change (implementation, test, documentation, configuration)\n2. **Development Context**: Capture the purpose of the change, which feature/task it relates to, and any technical decisions made\n3. **Project Progress**: Link this change to the current spec tasks and requirements being addressed\n4. **Code Relationships**: Create connections between related files, tests, and components\n\nUse the following memory MCP tools:\n- `mcp_memory_create_entities` to create nodes for files, tasks, features, and decisions\n- `mcp_memory_create_relations` to link related development activities\n- `mcp_memory_add_observations` to add detailed context about the changes\n\nFocus on building a comprehensive graph of the development process that can help with future context retrieval and project understanding."
+  }
+}

@@ -2,7 +2,9 @@
   "mcpServers": {
     "fetch": {
       "command": "uvx",
-      "args": ["mcp-fetch@latest"],
+      "args": [
+        "mcp-fetch@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -13,16 +15,38 @@
     },
     "git": {
       "command": "uvx",
-      "args": ["mcp-server-git@latest", "--repository", "."],
+      "args": [
+        "mcp-server-git@latest",
+        "--repository",
+        "."
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
-      "disabled": true,
-      "autoApprove": []
+      "disabled": false,
+      "autoApprove": [
+        "git_status",
+        "git_add"
+      ]
     },
     "sqlite": {
       "command": "uvx",
-      "args": ["mcp-server-sqlite@latest", "--db-path", "./data.db"],
+      "args": [
+        "mcp-server-sqlite@latest",
+        "--db-path",
+        "./data.db"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "time": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-time@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
