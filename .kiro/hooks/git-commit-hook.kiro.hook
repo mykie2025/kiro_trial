@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Git Commit Hook - Task Completion",
+  "description": "Automatically adds and commits all changes to git when a task is completed, with proper commit messages and clean repository management",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/tasks.md",
+      "**/requirements.md",
+      "**/design.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A spec file has been updated indicating task completion. Please use git MCP tools to automatically commit all changes:\n\n**Git Workflow Steps:**\n1. Check git status to see what files have changed\n2. Add all modified and new files to staging (excluding cache files)\n3. Create meaningful commit messages based on the changes\n4. Commit files one by one with descriptive messages\n5. Ensure .gitignore is properly configured\n6. Clean up any cache files or temporary files from git tracking\n\n**Commit Message Guidelines:**\n- Use conventional commit format: feat:, fix:, docs:, test:, chore:, etc.\n- Include clear description of what was implemented or changed\n- Reference task numbers or requirements when applicable\n- Keep messages concise but descriptive\n\n**Repository Hygiene:**\n- Ensure Python cache files (__pycache__/) are ignored\n- Remove any accidentally tracked temporary files\n- Maintain clean working directory after commits\n\n**Use these git MCP tools:**\n- `mcp_git_git_status` to check repository status\n- `mcp_git_git_add` to stage files for commit\n- `mcp_git_git_commit` to commit changes with messages\n- Handle .gitignore creation/updates if needed\n\nThis will maintain a clean git history with proper commit messages for each completed task."
+  }
+}
