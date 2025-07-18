@@ -137,3 +137,9 @@ Thumbs.db
 # Project specific
 data.db-journal
 *.db-journal
+
+# Neo4j Docker data directories
+neo4j_data/
+neo4j_logs/
+neo4j_import/
+neo4j_backups/
