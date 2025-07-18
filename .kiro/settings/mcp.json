@@ -53,7 +53,9 @@
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
-      "autoApprove": []
+      "autoApprove": [
+        "get_current_time"
+      ]
     }
   }
 }
