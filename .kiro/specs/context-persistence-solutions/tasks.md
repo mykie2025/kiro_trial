@@ -82,7 +82,7 @@
   - Add documentation for starting/stopping Neo4j using Docker Compose
   - _Requirements: 2.1, 2.7, 4.2, 6.6_
 
-- [-] 4. Build evaluation framework using LangChain evaluators
+- [x] 4. Build evaluation framework using LangChain evaluators
 - [x] 4.1 Set up LangChain evaluation tools integration
   - Import and configure LangChain's context_recall and relevance evaluators
   - Create PersistenceEvaluator class to manage both persistence solutions
@@ -90,7 +90,7 @@
   - Write unit tests for evaluator setup and configuration
   - _Requirements: 5.1, 5.2_
 
-- [ ] 4.2 Implement comparative evaluation system
+- [x] 4.2 Implement comparative evaluation system
   - Create methods to run identical queries against both persistence solutions
   - Implement context recall accuracy measurement for vector and graph systems
   - Add answer relevance and groundedness assessment using LangChain evaluators
@@ -98,7 +98,7 @@
   - Write integration tests for cross-system evaluation
   - _Requirements: 5.3, 5.4_
 
-- [ ] 4.3 Build evaluation reporting system
+- [x] 4.3 Build evaluation reporting system
   - Implement structured evaluation report generation with metrics and recommendations
   - Create detailed analysis of performance variations between systems
   - Add performance metrics collection (query times, accuracy scores)
