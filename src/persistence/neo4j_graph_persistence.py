@@ -49,6 +49,19 @@ class GraphPath:
     path_length: int
 
 
+@dataclass
+class GraphRAGResult:
+    """Result from Graph RAG query containing both graph and vector information."""
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    content: str
+    semantic_score: float
+    graph_relationships: List[Dict[str, Any]]
+    path_context: List[str]
+    combined_score: float
+
+
 class Neo4jGraphPersistence:
     """
     Neo4j-based graph persistence system for contextual relationship storage.
@@ -66,6 +79,19 @@ class Neo4jGraphPersistence:
         """
         self.config_manager = config_manager
         self.config = config_manager.get_config()
+        
+        # Initialize Graph RAG capabilities
+        try:
+            import openai
+            openai_config = config_manager.get_openai_client_config()
+            self.openai_client = openai.OpenAI(**openai_config)
+            self.embedding_model = config_manager.get_config().embedding_model
+            self.graph_rag_enabled = True
+            logger.info("Graph RAG capabilities enabled with OpenAI embeddings")
+        except Exception as e:
+            logger.warning(f"OpenAI not available for Graph RAG: {e}")
+            self.openai_client = None
+            self.graph_rag_enabled = False
         
         # Initialize Neo4j driver
         try:
@@ -719,4 +745,284 @@ class Neo4jGraphPersistence:
                 
         except Exception as e:
             logger.error(f"Error getting graph statistics: {e}")
-            return {'error': str(e)} 
+            return {'error': str(e)}
+    
+    # Graph RAG Enhancement Methods
+    
+    def _get_embedding(self, text: str) -> Optional[List[float]]:
+        """Generate embedding for text using OpenAI."""
+        if not self.graph_rag_enabled or not self.openai_client:
+            return None
+            
+        try:
+            response = self.openai_client.embeddings.create(
+                model=self.embedding_model,
+                input=text
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.error(f"Failed to generate embedding: {e}")
+            return None
+
+    def _calculate_semantic_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:
+        """Calculate cosine similarity between two embeddings."""
+        if not embedding1 or not embedding2:
+            return 0.0
+            
+        try:
+            import numpy as np
+            # Normalize vectors
+            vec1 = np.array(embedding1)
+            vec2 = np.array(embedding2)
+            
+            # Calculate cosine similarity
+            dot_product = np.dot(vec1, vec2)
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+                
+            return float(dot_product / (norm1 * norm2))
+        except Exception as e:
+            logger.error(f"Similarity calculation failed: {e}")
+            return 0.0
+
+    def create_entity_node_with_embedding(self, entity: str, entity_type: str, 
+                                        properties: Dict[str, Any], user_id: str) -> str:
+        """Create an entity node with optional vector embedding for Graph RAG."""
+        node_id = str(uuid.uuid4())
+        timestamp = datetime.now()
+        
+        # Generate embedding for the content if Graph RAG is enabled
+        content = properties.get('content', entity)
+        embedding = self._get_embedding(content) if self.graph_rag_enabled else None
+        
+        # Prepare node properties
+        node_properties = {
+            'id': node_id,
+            'name': entity,
+            'entity_type': entity_type,
+            'user_id': user_id,
+            'created_at': timestamp.isoformat(),
+            'updated_at': timestamp.isoformat(),
+            **properties
+        }
+        
+        # Add embedding if available
+        if embedding:
+            node_properties['embedding'] = embedding
+            node_properties['has_embedding'] = True
+        else:
+            node_properties['has_embedding'] = False
+        
+        try:
+            with self.driver.session(database=self.database) as session:
+                query = """
+                MERGE (n:Entity {name: $entity, user_id: $user_id})
+                SET n += $properties
+                SET n.updated_at = $timestamp
+                RETURN n.id as node_id
+                """
+                
+                result = session.run(query, {
+                    'entity': entity,
+                    'user_id': user_id,
+                    'properties': node_properties,
+                    'timestamp': timestamp.isoformat()
+                })
+                
+                record = result.single()
+                if record:
+                    actual_node_id = record['node_id']
+                    logger.info(f"Created entity node with Graph RAG: {entity} (ID: {actual_node_id}, Embedding: {embedding is not None})")
+                    return actual_node_id
+                else:
+                    raise Neo4jGraphError(f"Failed to create entity node: {entity}")
+                    
+        except Exception as e:
+            logger.error(f"Failed to create entity node with embedding: {e}")
+            raise Neo4jGraphError(f"Entity creation failed: {e}")
+
+    def graph_rag_query(self, query_text: str, user_id: str, 
+                       top_k: int = 5, graph_depth: int = 2,
+                       semantic_weight: float = 0.6, graph_weight: float = 0.4) -> List[GraphRAGResult]:
+        """
+        Enhanced Graph RAG query combining semantic search with graph traversal.
+        
+        Args:
+            query_text: Natural language query
+            user_id: User identifier for filtering
+            top_k: Number of top results to return
+            graph_depth: Maximum depth for graph traversal
+            semantic_weight: Weight for semantic similarity (0-1)
+            graph_weight: Weight for graph relationships (0-1)
+        """
+        if not self.graph_rag_enabled:
+            # Fallback to basic graph query
+            return self._fallback_graph_query(query_text, user_id, top_k)
+        
+        # Generate query embedding
+        query_embedding = self._get_embedding(query_text)
+        if not query_embedding:
+            return self._fallback_graph_query(query_text, user_id, top_k)
+        
+        results = []
+        
+        try:
+            with self.driver.session(database=self.database) as session:
+                # First, find semantically similar nodes
+                semantic_query = """
+                MATCH (n:Entity {user_id: $user_id})
+                WHERE n.has_embedding = true
+                RETURN n.id as node_id, n.name as name, n.entity_type as type, 
+                       coalesce(n.content, n.name) as content, n.embedding as embedding
+                """
+                
+                semantic_results = session.run(semantic_query, user_id=user_id)
+                
+                for record in semantic_results:
+                    node_embedding = record['embedding']
+                    if not node_embedding:
+                        continue
+                    
+                    # Calculate semantic similarity
+                    semantic_score = self._calculate_semantic_similarity(
+                        query_embedding, node_embedding
+                    )
+                    
+                    if semantic_score > 0.1:  # Threshold for relevance
+                        # Get graph context for this node
+                        graph_context = self._get_graph_context_for_rag(
+                            session, record['node_id'], user_id, graph_depth
+                        )
+                        
+                        # Calculate graph relevance based on connections
+                        graph_score = len(graph_context['relationships']) / 10.0  # Normalize
+                        graph_score = min(graph_score, 1.0)
+                        
+                        # Combined scoring
+                        combined_score = (semantic_weight * semantic_score + 
+                                        graph_weight * graph_score)
+                        
+                        result = GraphRAGResult(
+                            entity_id=record['node_id'],
+                            entity_name=record['name'],
+                            entity_type=record['type'],
+                            content=record['content'],
+                            semantic_score=semantic_score,
+                            graph_relationships=graph_context['relationships'],
+                            path_context=graph_context['paths'],
+                            combined_score=combined_score
+                        )
+                        results.append(result)
+                
+                # Sort by combined score and return top-k
+                results.sort(key=lambda x: x.combined_score, reverse=True)
+                
+                logger.info(f"Graph RAG query returned {len(results[:top_k])} results")
+                return results[:top_k]
+                
+        except Exception as e:
+            logger.error(f"Graph RAG query failed: {e}")
+            return self._fallback_graph_query(query_text, user_id, top_k)
+
+    def _get_graph_context_for_rag(self, session: Session, node_id: str, 
+                                  user_id: str, depth: int) -> Dict[str, Any]:
+        """Get graph context for a node including relationships and paths."""
+        try:
+            # Get immediate relationships
+            rel_query = """
+            MATCH (n:Entity {id: $node_id, user_id: $user_id})-[r]-(connected:Entity)
+            RETURN type(r) as rel_type, connected.name as connected_name,
+                   connected.entity_type as connected_type, connected.id as connected_id
+            LIMIT 20
+            """
+            
+            relationships = []
+            rel_results = session.run(rel_query, node_id=node_id, user_id=user_id)
+            
+            for rel_record in rel_results:
+                relationships.append({
+                    'type': rel_record['rel_type'],
+                    'connected_entity': rel_record['connected_name'],
+                    'connected_type': rel_record['connected_type'],
+                    'connected_id': rel_record['connected_id']
+                })
+            
+            # Get multi-hop paths if depth > 1
+            paths = []
+            if depth > 1:
+                if depth == 2:
+                    path_query = """
+                    MATCH path = (start:Entity {id: $node_id, user_id: $user_id})
+                                -[*1..2]-(end:Entity {user_id: $user_id})
+                    RETURN [node in nodes(path) | node.name] as path_names
+                    LIMIT 10
+                    """
+                else:
+                    path_query = """
+                    MATCH path = (start:Entity {id: $node_id, user_id: $user_id})
+                                -[*1..3]-(end:Entity {user_id: $user_id})
+                    RETURN [node in nodes(path) | node.name] as path_names
+                    LIMIT 10
+                    """
+                
+                path_results = session.run(path_query, node_id=node_id, user_id=user_id)
+                
+                for path_record in path_results:
+                    path_names = path_record['path_names']
+                    if len(path_names) > 1:
+                        paths.append(' → '.join(path_names))
+            
+            return {
+                'relationships': relationships,
+                'paths': paths
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get graph context: {e}")
+            return {'relationships': [], 'paths': []}
+
+    def _fallback_graph_query(self, query_text: str, user_id: str, top_k: int) -> List[GraphRAGResult]:
+        """Fallback to basic graph query when embeddings are not available."""
+        try:
+            with self.driver.session(database=self.database) as session:
+                # Simple text matching query
+                query = """
+                MATCH (n:Entity {user_id: $user_id})
+                WHERE toLower(n.name) CONTAINS toLower($query_text) 
+                   OR toLower(coalesce(n.content, '')) CONTAINS toLower($query_text)
+                RETURN n.id as node_id, n.name as name, n.entity_type as type,
+                       coalesce(n.content, n.name) as content
+                LIMIT $top_k
+                """
+                
+                results = []
+                query_results = session.run(
+                    query, user_id=user_id, query_text=query_text, top_k=top_k
+                )
+                
+                for record in query_results:
+                    # Get basic graph context
+                    graph_context = self._get_graph_context_for_rag(
+                        session, record['node_id'], user_id, 1
+                    )
+                    
+                    result = GraphRAGResult(
+                        entity_id=record['node_id'],
+                        entity_name=record['name'],
+                        entity_type=record['type'],
+                        content=record['content'],
+                        semantic_score=0.5,  # Default score for text match
+                        graph_relationships=graph_context['relationships'],
+                        path_context=graph_context['paths'],
+                        combined_score=0.5
+                    )
+                    results.append(result)
+                
+                return results
+                
+        except Exception as e:
+            logger.error(f"Fallback query failed: {e}")
+            return [] 

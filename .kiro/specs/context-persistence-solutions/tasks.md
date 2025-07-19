@@ -82,6 +82,15 @@
   - Add documentation for starting/stopping Neo4j using Docker Compose
   - _Requirements: 2.1, 2.7, 4.2, 6.6_
 
+- [x] 3.6 Implement Graph RAG enhancement for improved context retrieval
+  - Enhance Neo4j graph persistence with Graph RAG (Retrieval-Augmented Generation) capabilities
+  - Implement semantic search within graph nodes using vector embeddings
+  - Create hybrid retrieval combining graph traversal with vector similarity search
+  - Add graph-based context expansion for richer RAG responses
+  - Implement query decomposition and multi-hop reasoning across graph relationships
+  - Write comprehensive tests for Graph RAG functionality and performance comparison
+  - _Requirements: 2.3, 2.6, 5.3, 5.4_
+
 - [x] 4. Build evaluation framework using LangChain evaluators
 - [x] 4.1 Set up LangChain evaluation tools integration
   - Import and configure LangChain's context_recall and relevance evaluators
@@ -106,12 +115,22 @@
   - Write tests for report generation and metrics calculation
   - _Requirements: 5.5, 5.6_
 
-- [x] 4.4 Evaluate comprehensive LangChain example results
+- [x] 4.4 Evaluate comprehensive LangChain example results with Graph RAG
   - Use evaluation framework to assess results from examples/comprehensive_langchain_example.py
-  - Measure context recall accuracy and relevance of memory retrieval
+  - Measure context recall accuracy and relevance of memory retrieval with Graph RAG enhancement
   - Analyze semantic search performance across different memory types
+  - Compare vector vs Graph RAG performance using hybrid retrieval approach
   - Generate evaluation report for the comprehensive example workflow
   - Validate MVP implementation against evaluation metrics
+  - _Requirements: 5.1, 5.2, 5.3, 6.5_
+
+- [x] 4.5 Implement markdown-based demo testing data integration
+  - Parse markdown files from examples/data/ directory as real-world testing data
+  - Extract information points from markdown content for comprehensive evaluation
+  - Use examples/data/3.md as default source with 20 random information points
+  - Support configurable selection of markdown files and information point count
+  - Integrate parsed content into both vector and Graph RAG persistence systems
+  - Compare performance on structured vs unstructured real-world content
   - _Requirements: 5.1, 5.2, 5.3, 6.5_
 
 - [ ] 5. Create system integration and testing

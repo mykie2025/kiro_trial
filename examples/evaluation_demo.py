@@ -1,24 +1,10 @@
-"""
-Evaluation Demo: Comprehensive assessment of LangChain vector persistence system.
-
-This script uses the enhanced evaluation framework to assess the performance and 
-effectiveness of the LangChain vector persistence system demonstrated in 
-comprehensive_langchain_example.py.
-
-Task 4.4 Requirements:
-- Use evaluation framework to assess results from comprehensive LangChain example
-- Measure context recall accuracy and relevance of memory retrieval
-- Analyze semantic search performance across different memory types
-- Generate evaluation report for the comprehensive example workflow
-- Validate MVP implementation against evaluation metrics
-
-Usage:
-    python examples/evaluation_demo.py
-"""
+"""Comprehensive Evaluation Demo for LangChain Vector Persistence."""
 
 import sys
 import os
 import uuid
+import re
+import random
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
 
@@ -27,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.config.config_manager import ConfigManager
 from src.persistence.langchain_vector_persistence import LangChainVectorPersistence
+from src.persistence.neo4j_graph_persistence import Neo4jGraphPersistence
 from src.persistence.memory_document import MemoryDocument, MemoryType
 from src.evaluation.persistence_evaluator import (
     PersistenceEvaluator, 
@@ -41,21 +28,315 @@ class LangChainEvaluationDemo:
     
     def __init__(self):
         """Initialize the evaluation demo."""
-        print("🔬 LangChain Vector Persistence Evaluation Demo")
-        print("=" * 60)
+        print("🔬 Comparative Persistence Evaluation Demo (Vector vs Graph)")
+        print("=" * 65)
         
         try:
             self.config_manager = ConfigManager()
-            self.persistence = LangChainVectorPersistence(self.config_manager)
+            
+            # Initialize vector persistence
+            self.vector_persistence = LangChainVectorPersistence(self.config_manager)
+            print("✅ Vector persistence initialized")
+            
+            # Initialize Neo4j graph persistence directly (bypass docker manager)
+            print("🕸️  Connecting to running Neo4j instance...")
+            self.graph_persistence = Neo4jGraphPersistence(self.config_manager)
+            
+            # Test Neo4j health
+            health = self.graph_persistence.health_check()
+            if health['status'] == 'healthy':
+                print("✅ Graph persistence initialized and healthy")
+                print(f"   • Database: {health['database']}")
+                print(f"   • Nodes: {health['node_count']}")
+            else:
+                print(f"⚠️  Graph persistence connected but not optimal: {health.get('error', 'Unknown')}")
+            
+            # Initialize evaluator
             self.evaluator = PersistenceEvaluator(self.config_manager)
+            print("✅ Evaluation framework initialized")
             
             # Test user for evaluation
-            self.test_user_id = "evaluation_test_user"
+            self.test_user_id = "comparative_eval_user"
             
-            print("✅ Evaluation framework initialized successfully!")
+            print("✅ Comparative evaluation framework ready!")
         except Exception as e:
             print(f"❌ Initialization failed: {e}")
             raise
+    
+    def parse_markdown_file(self, file_path: str) -> Dict[str, Any]:
+        """Parse a markdown file and extract structured content."""
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Markdown file not found: {file_path}")
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Extract metadata from the beginning
+            lines = content.split('\n')
+            metadata = {
+                'file_path': file_path,
+                'file_name': os.path.basename(file_path),
+                'line_count': len(lines),
+                'char_count': len(content)
+            }
+            
+            # Try to extract title/author from first few lines
+            for i, line in enumerate(lines[:10]):
+                line = line.strip()
+                if line and not line.startswith('#') and len(line) > 5:
+                    # Potential title or author
+                    if '/' in line or 'Writing' in line or 'About' in line:
+                        continue  # Skip navigation elements
+                    if not metadata.get('title') and len(line) < 100:
+                        metadata['title'] = line
+                        break
+            
+            return {
+                'content': content,
+                'metadata': metadata
+            }
+            
+        except Exception as e:
+            raise ValueError(f"Failed to parse markdown file {file_path}: {e}")
+    
+    def extract_information_points(self, content: str, num_points: int = 20) -> List[Dict[str, Any]]:
+        """Extract information points from markdown content."""
+        # Split content into sentences and paragraphs
+        paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+        
+        information_points = []
+        
+        for paragraph in paragraphs:
+            # Skip headers, navigation, and very short paragraphs
+            if (paragraph.startswith('#') or 
+                len(paragraph) < 50 or
+                'About\nWriting' in paragraph or
+                'RSS\nTwitter' in paragraph):
+                continue
+            
+            # Split paragraph into sentences
+            sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+            
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if len(sentence) < 30:  # Skip very short sentences
+                    continue
+                
+                # Categorize the information point
+                info_type = self._categorize_information(sentence)
+                
+                information_points.append({
+                    'content': sentence,
+                    'type': info_type,
+                    'length': len(sentence),
+                    'word_count': len(sentence.split())
+                })
+        
+        # Randomly sample the requested number of points
+        if len(information_points) > num_points:
+            information_points = random.sample(information_points, num_points)
+        
+        return information_points
+    
+    def _categorize_information(self, sentence: str) -> MemoryType:
+        """Categorize a sentence into a memory type based on content patterns."""
+        sentence_lower = sentence.lower()
+        
+        # Preference indicators
+        if any(word in sentence_lower for word in ['prefer', 'like', 'favorite', 'choose', 'use']):
+            return MemoryType.PREFERENCE
+        
+        # Fact indicators (numbers, definitive statements)
+        if (any(word in sentence_lower for word in ['is', 'was', 'are', 'were', 'has', 'have']) and
+            any(char.isdigit() for char in sentence) or
+            'company' in sentence_lower or 'organization' in sentence_lower):
+            return MemoryType.FACT
+        
+        # Conversation indicators
+        if any(word in sentence_lower for word in ['said', 'told', 'asked', 'mentioned', 'discussed']):
+            return MemoryType.CONVERSATION
+        
+        # Event indicators
+        if any(word in sentence_lower for word in ['joined', 'left', 'launched', 'started', 'happened', 'occurred']):
+            return MemoryType.EVENT
+        
+        # Default to context for descriptive content
+        return MemoryType.CONTEXT
+    
+    def create_memories_from_markdown(self, markdown_file: str = "examples/data/3.md", 
+                                    num_points: int = 20) -> List[MemoryDocument]:
+        """Create memory documents from markdown file content."""
+        print(f"\n📋 Creating Memories from Markdown File: {markdown_file}")
+        print("-" * 50)
+        
+        # Parse the markdown file
+        parsed_data = self.parse_markdown_file(markdown_file)
+        print(f"📄 Parsed file: {parsed_data['metadata']['file_name']}")
+        print(f"   Lines: {parsed_data['metadata']['line_count']}, Characters: {parsed_data['metadata']['char_count']}")
+        
+        # Extract information points
+        info_points = self.extract_information_points(parsed_data['content'], num_points)
+        print(f"🔍 Extracted {len(info_points)} information points")
+        
+        # Create memory documents
+        memories = []
+        type_counts = {}
+        
+        for i, point in enumerate(info_points, 1):
+            memory = MemoryDocument(
+                content=point['content'],
+                user_id=self.test_user_id,
+                timestamp=datetime.now(),
+                memory_type=point['type'],
+                metadata={
+                    'source': 'markdown',
+                    'file_name': parsed_data['metadata']['file_name'],
+                    'point_index': i,
+                    'word_count': point['word_count'],
+                    'extraction_method': 'automated'
+                }
+            )
+            memories.append(memory)
+            
+            # Count types
+            type_name = point['type'].value
+            type_counts[type_name] = type_counts.get(type_name, 0) + 1
+        
+        # Display summary
+        print(f"📊 Memory types distribution:")
+        for mem_type, count in type_counts.items():
+            print(f"   • {mem_type}: {count} memories")
+        
+        return memories
+    
+    def setup_markdown_evaluation_data(self, markdown_file: str = "examples/data/3.md", 
+                                     num_points: int = 20) -> List[MemoryDocument]:
+        """Set up test data using markdown file as source."""
+        print("\n📋 Setting Up Markdown-Based Evaluation Test Data")
+        print("-" * 50)
+        
+        # Create memories from markdown
+        test_memories = self.create_memories_from_markdown(markdown_file, num_points)
+        
+        # Clear any existing test data first
+        try:
+            self.vector_persistence.clear_memories(self.test_user_id)
+            with self.graph_persistence.driver.session(database=self.graph_persistence.database) as session:
+                session.run(
+                    "MATCH (n {user_id: $user_id}) DETACH DELETE n",
+                    {'user_id': self.test_user_id}
+                )
+            print("🧹 Cleared existing test data from both systems")
+        except Exception as e:
+            print(f"⚠️  Cleanup warning: {e}")
+        
+        # Store memories in both persistence systems
+        print(f"💾 Storing {len(test_memories)} markdown-based memories in both systems...")
+        
+        memory_nodes = {}  # Track created memory nodes for relationships
+        
+        for i, memory in enumerate(test_memories, 1):
+            try:
+                # Store in vector persistence
+                vector_memory_id = self.vector_persistence.save_memory(
+                    content=memory.content,
+                    user_id=memory.user_id,
+                    memory_type=memory.memory_type,
+                    metadata=memory.metadata
+                )
+                
+                # Store in graph persistence with embeddings
+                entity_name = f"MarkdownMemory_{i}_{memory.memory_type.value}"
+                graph_memory_id = self.graph_persistence.create_entity_node_with_embedding(
+                    entity=entity_name,
+                    entity_type="Memory",
+                    properties={
+                        'content': memory.content,
+                        'memory_type': memory.memory_type.value,
+                        'timestamp': memory.timestamp.isoformat(),
+                        'source': 'markdown',
+                        **memory.metadata
+                    },
+                    user_id=memory.user_id
+                )
+                
+                memory_nodes[entity_name] = {
+                    'id': graph_memory_id, 
+                    'memory': memory,
+                    'concepts': []
+                }
+                
+                print(f"   {i:2d}. [{memory.memory_type.value:12}] {memory.content[:70]}...")
+                print(f"       Vector ID: {vector_memory_id[:8]}... | Graph ID: {graph_memory_id[:8]}...")
+                
+            except Exception as e:
+                print(f"   ❌ Failed to store memory {i}: {e}")
+        
+        # Build basic graph relationships for markdown memories
+        print(f"\n🕸️  Building Graph Relationships for Markdown Content...")
+        
+        # Extract key concepts from the markdown content
+        concept_keywords = self._extract_concepts_from_memories(test_memories)
+        
+        # Create concept nodes and relationships
+        concept_nodes = {}
+        for concept, related_memories in concept_keywords.items():
+            try:
+                # Create concept node
+                concept_id = self.graph_persistence.create_entity_node_with_embedding(
+                    entity=concept,
+                    entity_type="Concept",
+                    properties={'name': concept, 'type': 'concept', 'source': 'markdown'},
+                    user_id=self.test_user_id
+                )
+                concept_nodes[concept] = concept_id
+                
+                # Create relationships between concept and related memories
+                relationship_count = 0
+                for memory_idx in related_memories:
+                    memory_name = f"MarkdownMemory_{memory_idx}_{test_memories[memory_idx-1].memory_type.value}"
+                    if memory_name in memory_nodes:
+                        success = self.graph_persistence.create_relationship(
+                            from_entity=memory_name,
+                            to_entity=concept,
+                            relationship_type="RELATES_TO",
+                            user_id=self.test_user_id,
+                            properties={'strength': 'high', 'source': 'markdown'}
+                        )
+                        if success:
+                            relationship_count += 1
+                
+                print(f"   🔗 Created concept '{concept}' with {relationship_count} relationships")
+                
+            except Exception as e:
+                print(f"   ❌ Failed to create concept {concept}: {e}")
+        
+        print(f"   ✅ Built graph with {len(concept_nodes)} concepts from markdown content")
+        print(f"✅ Successfully stored {len(test_memories)} markdown-based memories with graph structure")
+        
+        return test_memories
+    
+    def _extract_concepts_from_memories(self, memories: List[MemoryDocument]) -> Dict[str, List[int]]:
+        """Extract key concepts from memory content for graph relationships."""
+        concept_keywords = {}
+        
+        # Common technology and business concepts
+        tech_concepts = ['OpenAI', 'Python', 'API', 'Azure', 'ChatGPT', 'AI', 'Machine Learning', 
+                        'Slack', 'GitHub', 'GPU', 'Kubernetes', 'FastAPI']
+        business_concepts = ['Company', 'Team', 'Leadership', 'Culture', 'Product', 'Launch', 
+                           'Engineering', 'Research', 'Development']
+        
+        for concept in tech_concepts + business_concepts:
+            related_memories = []
+            for i, memory in enumerate(memories, 1):
+                if concept.lower() in memory.content.lower():
+                    related_memories.append(i)
+            
+            if related_memories:
+                concept_keywords[concept] = related_memories
+        
+        return concept_keywords
     
     def setup_evaluation_data(self) -> List[MemoryDocument]:
         """Set up test data mirroring the comprehensive example scenarios."""
@@ -143,22 +424,158 @@ class LangChainEvaluationDemo:
             )
         ]
         
-        # Store memories in the persistence system
-        print("💾 Storing test memories...")
+        # Store memories in both persistence systems
+        print("💾 Storing test memories in both systems...")
+        
+        # Clear any existing test data first
+        try:
+            self.vector_persistence.clear_memories(self.test_user_id)
+            with self.graph_persistence.driver.session(database=self.graph_persistence.database) as session:
+                session.run(
+                    "MATCH (n {user_id: $user_id}) DETACH DELETE n",
+                    {'user_id': self.test_user_id}
+                )
+            print("🧹 Cleared existing test data from both systems")
+        except Exception as e:
+            print(f"⚠️  Cleanup warning: {e}")
+        
+        memory_nodes = {}  # Track created memory nodes for relationships
+        
         for i, memory in enumerate(test_memories, 1):
             try:
-                memory_id = self.persistence.save_memory(
+                # Store in vector persistence
+                vector_memory_id = self.vector_persistence.save_memory(
                     content=memory.content,
                     user_id=memory.user_id,
                     memory_type=memory.memory_type,
                     metadata=memory.metadata
                 )
+                
+                # Store in graph persistence as entity nodes
+                entity_name = f"Memory_{i}_{memory.memory_type.value}"
+                graph_memory_id = self.graph_persistence.create_entity_node_with_embedding(
+                    entity=entity_name,
+                    entity_type="Memory",
+                    properties={
+                        'content': memory.content,
+                        'memory_type': memory.memory_type.value,
+                        'timestamp': memory.timestamp.isoformat(),
+                        'category': memory.metadata.get('category', 'general'),
+                        **memory.metadata
+                    },
+                    user_id=memory.user_id
+                )
+                
+                memory_nodes[entity_name] = {
+                    'id': graph_memory_id, 
+                    'memory': memory,
+                    'concepts': []
+                }
+                
                 print(f"   {i:2d}. [{memory.memory_type.value:12}] {memory.content[:50]}...")
+                print(f"       Vector ID: {vector_memory_id[:8]}... | Graph ID: {graph_memory_id[:8]}...")
                 
             except Exception as e:
                 print(f"   ❌ Failed to store memory {i}: {e}")
         
-        print(f"✅ Successfully stored {len(test_memories)} test memories")
+        # Build graph relationships by extracting concepts and creating connections
+        print("\n🕸️  Building Graph Relationships...")
+        
+        # Define concept extraction rules
+        concept_mappings = {
+            'Python': ['Memory_2_context', 'Memory_3_fact', 'Memory_1_preference'],
+            'Machine Learning': ['Memory_2_context', 'Memory_8_event'],
+            'Data Science': ['Memory_3_fact', 'Memory_2_context', 'Memory_10_context'],
+            'Visualization': ['Memory_4_preference', 'Memory_5_context'],
+            'SQL': ['Memory_6_fact'],
+            'Analysis': ['Memory_5_context', 'Memory_6_fact', 'Memory_10_context'],
+            'Automation': ['Memory_5_context', 'Memory_9_conversation'],
+            'Reporting': ['Memory_4_preference', 'Memory_5_context', 'Memory_9_conversation'],
+            'Development Tools': ['Memory_1_preference'],
+            'Databases': ['Memory_6_fact', 'Memory_7_conversation']
+        }
+        
+        # Create concept nodes and relationships
+        concept_nodes = {}
+        for concept, related_memories in concept_mappings.items():
+            try:
+                # Create concept node
+                concept_id = self.graph_persistence.create_entity_node_with_embedding(
+                    entity=concept,
+                    entity_type="Concept",
+                    properties={'name': concept, 'type': 'concept'},
+                    user_id=self.test_user_id
+                )
+                concept_nodes[concept] = concept_id
+                
+                # Create relationships between concept and related memories
+                for memory_name in related_memories:
+                    if memory_name in memory_nodes:
+                        success = self.graph_persistence.create_relationship(
+                            from_entity=memory_name,
+                            to_entity=concept,
+                            relationship_type="RELATES_TO",
+                            user_id=self.test_user_id,
+                            properties={'strength': 'high', 'auto_extracted': True}
+                        )
+                        if success:
+                            memory_nodes[memory_name]['concepts'].append(concept)
+                
+                print(f"   🔗 Created concept '{concept}' with {len(related_memories)} relationships")
+                
+            except Exception as e:
+                print(f"   ❌ Failed to create concept {concept}: {e}")
+        
+        # Create cross-memory relationships based on shared concepts/categories
+        category_groups = {}
+        for name, info in memory_nodes.items():
+            category = info['memory'].metadata.get('category', 'general')
+            if category not in category_groups:
+                category_groups[category] = []
+            category_groups[category].append(name)
+        
+        print(f"\n🔗 Creating cross-memory relationships...")
+        relationship_count = 0
+        
+        # Create relationships within categories
+        for category, memories in category_groups.items():
+            if len(memories) > 1:
+                for i in range(len(memories)):
+                    for j in range(i+1, len(memories)):
+                        try:
+                            success = self.graph_persistence.create_relationship(
+                                from_entity=memories[i],
+                                to_entity=memories[j],
+                                relationship_type="SAME_CATEGORY",
+                                user_id=self.test_user_id,
+                                properties={'category': category, 'relationship_type': 'categorical'}
+                            )
+                            if success:
+                                relationship_count += 1
+                        except Exception as e:
+                            print(f"   ⚠️  Failed to create relationship: {e}")
+        
+        # Create temporal relationships for project-related memories
+        project_memories = [name for name, info in memory_nodes.items() 
+                         if 'project' in info['memory'].metadata.get('category', '')]
+        for i in range(len(project_memories)-1):
+            try:
+                success = self.graph_persistence.create_relationship(
+                    from_entity=project_memories[i],
+                    to_entity=project_memories[i+1],
+                    relationship_type="RELATED_PROJECT",
+                    user_id=self.test_user_id,
+                    properties={'relationship_type': 'temporal'}
+                )
+                if success:
+                    relationship_count += 1
+            except Exception as e:
+                print(f"   ⚠️  Failed to create project relationship: {e}")
+        
+        print(f"   ✅ Created {relationship_count} cross-memory relationships")
+        print(f"   ✅ Built graph with {len(concept_nodes)} concepts and {relationship_count} relationships")
+        
+        print(f"✅ Successfully stored {len(test_memories)} test memories with graph structure in both systems")
         return test_memories
     
     def create_evaluation_queries(self) -> List[EvaluationQuery]:
@@ -278,7 +695,7 @@ class LangChainEvaluationDemo:
                 start_time = datetime.now()
                 
                 # Perform semantic search
-                results = self.persistence.search_memories(
+                results = self.vector_persistence.search_memories(
                     query=query.question,
                     user_id=query.user_id,
                     k=3
@@ -356,87 +773,36 @@ class LangChainEvaluationDemo:
     
     def run_langchain_evaluation(self, search_results: Dict[str, Any]) -> Dict[str, Any]:
         """Run LangChain-based evaluation using the enhanced evaluation framework."""
-        print("\n🧪 Running LangChain Evaluation Framework")
-        print("-" * 45)
+        print("\n🧪 Running Comparative LangChain Evaluation Framework")
+        print("-" * 50)
         
-        # Extract data for evaluation
-        queries = [result['query'] for result in search_results['search_results']]
-        retrieved_contexts = []
-        expected_contexts = []
-        
-        for result in search_results['search_results']:
-            # Format retrieved context from top result
-            if result['results']:
-                top_result = result['results'][0]
-                retrieved_context = f"{top_result['content']} (similarity: {top_result['similarity_score']:.3f})"
-            else:
-                retrieved_context = "No relevant context found"
-            
-            retrieved_contexts.append(retrieved_context)
-            expected_contexts.append(result['expected_context'])
-        
-        print(f"📋 Evaluating {len(queries)} query-context pairs...")
-        
+        # Use the enhanced comparative evaluation from task 4.2/4.3
         try:
-            # Run context recall evaluation
-            print("\n🎯 Context Recall Evaluation:")
-            context_recall_results = self.evaluator.evaluate_context_recall(
-                retrieved_contexts=retrieved_contexts,
-                expected_contexts=expected_contexts,
-                queries=queries
+            print("📋 Running comparative evaluation against both persistence systems...")
+            
+            # Use the evaluator's run_comparative_evaluation method
+            comparison_results = self.evaluator.run_comparative_evaluation(
+                vector_persistence=self.vector_persistence,
+                graph_persistence=self.graph_persistence,
+                test_queries=search_results['evaluation_queries'],
+                include_performance_metrics=True
             )
             
-            avg_context_recall = sum(r.score for r in context_recall_results) / len(context_recall_results)
-            print(f"   📊 Average context recall: {avg_context_recall:.3f}")
+            print(f"\n✅ Comparative evaluation completed successfully!")
+            vector_score = comparison_results['comparison']['overall']['vector_score']
+            graph_score = comparison_results['comparison']['overall']['graph_score']
+            print(f"   📊 Vector solution score: {vector_score:.3f}")
+            print(f"   📊 Graph solution score: {graph_score:.3f}")
             
-            # Run relevance evaluation
-            print("\n🎯 Relevance Evaluation:")
-            relevance_results = self.evaluator.evaluate_relevance(
-                retrieved_contexts=retrieved_contexts,
-                queries=queries
-            )
-            
-            avg_relevance = sum(r.score for r in relevance_results) / len(relevance_results)
-            print(f"   📊 Average relevance: {avg_relevance:.3f}")
-            
-            # Run memory accuracy evaluation
-            print("\n🎯 Memory Accuracy Evaluation:")
-            memory_accuracy_results = self.evaluator.evaluate_memory_accuracy(
-                retrieved_memories=retrieved_contexts,
-                queries=queries
-            )
-            
-            avg_memory_accuracy = sum(r.score for r in memory_accuracy_results) / len(memory_accuracy_results)
-            print(f"   📊 Average memory accuracy: {avg_memory_accuracy:.3f}")
-            
-            # Prepare comparison results structure
-            comparison_results = {
-                'vector_solution': {
-                    'context_recall': context_recall_results,
-                    'relevance': relevance_results,
-                    'memory_accuracy': memory_accuracy_results
-                },
-                'graph_solution': {},  # No graph solution for single-system evaluation
-                'comparison': {
-                    'overall': {
-                        'vector_score': (avg_context_recall * 0.2 + avg_relevance * 0.4 + avg_memory_accuracy * 0.4),
-                        'graph_score': 0.0  # No graph solution
-                    }
-                },
-                'metadata': {
-                    'evaluation_timestamp': datetime.now().isoformat(),
-                    'num_queries': len(queries),
-                    'evaluator_version': self.evaluator.version
-                }
-            }
-            
-            print(f"\n✅ LangChain evaluation completed successfully!")
-            print(f"   📊 Overall vector solution score: {comparison_results['comparison']['overall']['vector_score']:.3f}")
+            winner = comparison_results['comparison']['overall']['winner']
+            print(f"   🏆 Winner: {winner.title()}")
             
             return comparison_results
             
         except Exception as e:
-            print(f"❌ LangChain evaluation failed: {e}")
+            print(f"❌ Comparative evaluation failed: {e}")
+            import traceback
+            traceback.print_exc()
             raise
     
     def generate_comprehensive_report(self, comparison_results: Dict[str, Any], 
@@ -474,11 +840,17 @@ class LangChainEvaluationDemo:
                 output_format=ReportFormat.JSON
             )
             
-            # Save reports to files
+            # Create eval_report directory if it doesn't exist
+            eval_report_dir = "eval_report"
+            if not os.path.exists(eval_report_dir):
+                os.makedirs(eval_report_dir)
+                print(f"📁 Created {eval_report_dir} directory")
+            
+            # Save reports to files in eval_report directory
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            markdown_file = f"evaluation_report_{timestamp}.md"
-            json_file = f"evaluation_report_{timestamp}.json"
+            markdown_file = os.path.join(eval_report_dir, f"evaluation_report_{timestamp}.md")
+            json_file = os.path.join(eval_report_dir, f"evaluation_report_{timestamp}.json")
             
             with open(markdown_file, 'w') as f:
                 f.write(markdown_report)
@@ -486,9 +858,16 @@ class LangChainEvaluationDemo:
             with open(json_file, 'w') as f:
                 f.write(json_report)
             
+            # Save raw comparison results for detailed analysis
+            raw_results_file = os.path.join(eval_report_dir, f"raw_comparison_results_{timestamp}.json")
+            with open(raw_results_file, 'w') as f:
+                import json
+                json.dump(comparison_results, f, indent=2, default=str)
+            
             print(f"✅ Reports generated successfully:")
             print(f"   📄 Markdown: {markdown_file}")
             print(f"   📄 JSON: {json_file}")
+            print(f"   📊 Raw Results: {raw_results_file}")
             
             # Display key findings from the report
             print(f"\n🔍 Key Evaluation Findings:")
@@ -582,76 +961,208 @@ class LangChainEvaluationDemo:
     
     def cleanup_test_data(self) -> None:
         """Clean up test data after evaluation."""
-        print("\n🧹 Cleaning Up Test Data")
-        print("-" * 30)
+        print("\n🧹 Cleaning Up Test Data from Both Systems")
+        print("-" * 45)
         
         try:
-            self.persistence.clear_memories(self.test_user_id)
-            print("✅ Test data cleaned up successfully")
+            # Clean vector persistence
+            self.vector_persistence.clear_memories(self.test_user_id)
+            print("✅ Vector persistence test data cleaned up")
         except Exception as e:
-            print(f"⚠️  Cleanup warning: {e}")
-    
-    def run_comprehensive_evaluation(self) -> None:
-        """Run the complete evaluation workflow."""
+            print(f"⚠️  Vector cleanup warning: {e}")
+        
         try:
-            # Setup test data
-            test_memories = self.setup_evaluation_data()
+            # Clean graph persistence (remove all entities for user)
+            with self.graph_persistence.driver.session(database=self.graph_persistence.database) as session:
+                session.run(
+                    "MATCH (n:Entity {user_id: $user_id}) DETACH DELETE n",
+                    {'user_id': self.test_user_id}
+                )
+            print("✅ Graph persistence test data cleaned up")
+        except Exception as e:
+            print(f"⚠️  Graph cleanup warning: {e}")
+    
+    def run_comprehensive_evaluation(self, use_markdown_data: bool = False, 
+                                   markdown_file: str = "examples/data/3.md", 
+                                   num_points: int = 20) -> Dict[str, Any]:
+        """
+        Run comprehensive evaluation using either hardcoded or markdown-based demo data.
+        
+        Args:
+            use_markdown_data: Whether to use markdown files as data source
+            markdown_file: Path to markdown file (default: examples/data/3.md)
+            num_points: Number of information points to extract (default: 20)
+        """
+        evaluation_results = {}
+        
+        try:
+            # Set up evaluation data
+            if use_markdown_data:
+                print(f"📋 Using markdown-based demo data from {markdown_file}")
+                test_memories = self.setup_markdown_evaluation_data(markdown_file, num_points)
+                data_source = f"markdown:{os.path.basename(markdown_file)}"
+            else:
+                print("📋 Using hardcoded demo data")
+                test_memories = self.setup_evaluation_data()
+                data_source = "hardcoded"
             
-            # Create evaluation queries
-            evaluation_queries = self.create_evaluation_queries()
+            # Create evaluation queries based on the data type
+            if use_markdown_data:
+                evaluation_queries = self.create_markdown_evaluation_queries(test_memories)
+            else:
+                evaluation_queries = self.create_evaluation_queries()
             
-            # Evaluate search performance
-            search_performance = self.evaluate_semantic_search_performance(evaluation_queries)
+            evaluation_results['test_memories'] = test_memories
+            evaluation_results['evaluation_queries'] = evaluation_queries
+            evaluation_results['data_source'] = data_source
             
-            # Run LangChain evaluation
-            comparison_results = self.run_langchain_evaluation(search_performance)
+            # Run semantic search performance evaluation
+            search_results = self.evaluate_semantic_search_performance(evaluation_queries)
+            evaluation_results.update(search_results)
+            
+            # Run LangChain evaluation framework
+            langchain_results = self.run_langchain_evaluation(search_results)
+            evaluation_results['langchain_evaluation'] = langchain_results
             
             # Generate comprehensive report
-            report = self.generate_comprehensive_report(comparison_results, search_performance)
+            self.generate_comprehensive_report(langchain_results, search_results)
             
             # Validate MVP requirements
-            self.validate_mvp_requirements(comparison_results, search_performance)
+            self.validate_mvp_requirements(langchain_results, search_results)
             
             # Cleanup
             self.cleanup_test_data()
             
-            print(f"\n🎉 Comprehensive evaluation completed successfully!")
-            print(f"✅ Task 4.4 requirements fulfilled:")
-            print(f"   • Evaluation framework assessment ✅")
-            print(f"   • Context recall accuracy measurement ✅")
-            print(f"   • Relevance measurement ✅")
-            print(f"   • Semantic search performance analysis ✅")
-            print(f"   • Comprehensive evaluation report generation ✅")
-            print(f"   • MVP validation against metrics ✅")
+            print(f"\n🎉 Comparative evaluation completed successfully with {data_source} data!")
+            self.print_task_completion_summary()
+            
+            return evaluation_results
             
         except Exception as e:
             print(f"❌ Evaluation failed: {e}")
             import traceback
             traceback.print_exc()
+            raise
+    
+    def create_markdown_evaluation_queries(self, memories: List[MemoryDocument]) -> List[EvaluationQuery]:
+        """Create evaluation queries tailored for markdown-based content."""
+        queries = []
+        
+        # Extract unique concepts from memories for query generation
+        all_content = " ".join([m.content for m in memories])
+        
+        # Generate queries based on common themes in the content
+        query_templates = [
+            # Company and culture queries
+            ("What is OpenAI's company culture like?", "context"),
+            ("How does OpenAI approach product development?", "context"), 
+            ("What technologies does OpenAI use in their infrastructure?", "fact"),
+            ("How does the team collaboration work at OpenAI?", "context"),
+            ("What are the challenges of working at OpenAI?", "context"),
             
-            # Attempt cleanup even on failure
-            try:
-                self.cleanup_test_data()
-            except:
-                pass
+            # Technical and process queries
+            ("What programming languages and tools are mentioned?", "fact"),
+            ("How is code organized and managed?", "fact"),
+            ("What are the key product launches discussed?", "event"),
+            ("How does the company handle rapid scaling?", "context"),
+            ("What are the performance characteristics mentioned?", "fact"),
+            
+            # Personal experience queries
+            ("What personal experiences are shared about working there?", "conversation"),
+            ("What career advice or insights are provided?", "preference"),
+            ("What specific achievements or milestones are mentioned?", "event"),
+            ("How does the author describe the work environment?", "context"),
+            ("What recommendations or preferences are expressed?", "preference")
+        ]
+        
+        # Filter queries based on actual content
+        filtered_queries = []
+        for question, expected_type in query_templates:
+            # Check if the query is relevant to the content
+            key_words = question.lower().split()
+            content_words = all_content.lower().split()
+            
+            # If at least 2 key words from question appear in content, include the query
+            matching_words = sum(1 for word in key_words if word in content_words)
+            if matching_words >= 2:
+                filtered_queries.append((question, expected_type))
+        
+        # Create EvaluationQuery objects
+        for i, (question, expected_type) in enumerate(filtered_queries[:10]):  # Limit to 10 queries
+            # Generate expected context based on memory type
+            expected_context = self._generate_expected_context(question, memories, expected_type)
+            
+            query = EvaluationQuery(
+                query_id=str(uuid.uuid4()),
+                question=question,
+                expected_context=expected_context,
+                user_id=self.test_user_id,
+                memory_type=expected_type
+            )
+            queries.append(query)
+        
+        return queries
+    
+    def _generate_expected_context(self, question: str, memories: List[MemoryDocument], 
+                                 expected_type: str) -> str:
+        """Generate expected context for a question based on relevant memories."""
+        question_lower = question.lower()
+        relevant_memories = []
+        
+        # Find memories that might be relevant to the question
+        for memory in memories:
+            memory_content_lower = memory.content.lower()
+            
+            # Simple relevance scoring based on shared keywords
+            question_words = set(question_lower.split())
+            memory_words = set(memory_content_lower.split())
+            shared_words = question_words & memory_words
+            
+            if len(shared_words) >= 2:  # At least 2 shared words
+                relevant_memories.append(memory.content)
+        
+        # Return first few relevant memories as expected context
+        if relevant_memories:
+            return ". ".join(relevant_memories[:3])  # Limit to 3 memories
+        else:
+            return f"Information related to {expected_type} context"
+    
+    def print_task_completion_summary(self):
+        """Print a summary of completed task requirements."""
+        print(f"✅ Task 4.4 requirements fulfilled:")
+        print(f"   • Evaluation framework assessment ✅")
+        print(f"   • Context recall accuracy measurement ✅")
+        print(f"   • Relevance measurement ✅")
+        print(f"   • Semantic search performance analysis ✅")
+        print(f"   • Comprehensive evaluation report generation ✅")
+        print(f"   • MVP validation against metrics ✅")
+        print(f"   • Comparative analysis between vector and graph systems ✅")
 
 
 def main():
-    """Run the comprehensive evaluation demonstration."""
-    print("Starting LangChain Vector Persistence Evaluation (Task 4.4)")
-    print("This evaluation assesses the comprehensive example implementation")
-    print("using the enhanced evaluation framework from Task 4.3.\n")
+    """Main function to run the evaluation demo."""
+    print("Starting Comparative Persistence Evaluation (Task 4.4)")
+    print("This evaluation compares vector and graph persistence implementations")
+    print("using the enhanced evaluation framework from Task 4.3.")
+    print()
     
-    try:
-        demo = LangChainEvaluationDemo()
-        demo.run_comprehensive_evaluation()
-        
-    except KeyboardInterrupt:
-        print("\n\n⏹️  Evaluation interrupted by user")
-    except Exception as e:
-        print(f"\n❌ Evaluation failed: {e}")
-        import traceback
-        traceback.print_exc()
+    # Option to use markdown-based demo data
+    use_markdown = len(sys.argv) > 1 and sys.argv[1] == "--markdown"
+    markdown_file = sys.argv[2] if len(sys.argv) > 2 else "examples/data/3.md"
+    num_points = int(sys.argv[3]) if len(sys.argv) > 3 else 20
+    
+    if use_markdown:
+        print(f"📋 Using markdown-based demo data from {markdown_file} ({num_points} points)")
+    else:
+        print("📋 Using hardcoded demo data (use --markdown flag for markdown-based data)")
+    print()
+    
+    demo = LangChainEvaluationDemo()
+    demo.run_comprehensive_evaluation(
+        use_markdown_data=use_markdown,
+        markdown_file=markdown_file,
+        num_points=num_points
+    )
 
 
 if __name__ == "__main__":

@@ -1,9 +1,17 @@
 """
-Persistence Evaluator Module
+Persistence Evaluator: Comprehensive evaluation framework for persistence systems.
 
-This module implements evaluation tools for comparing persistence solutions using LangChain's 
-evaluation framework. It provides metrics for context recall, relevance assessment, and 
-comparative analysis between vector and graph-based persistence systems.
+This module provides evaluation tools for comparing different persistence solutions
+using LangChain's evaluation framework. It supports context recall, relevance, and
+memory accuracy assessments.
+
+Requirements addressed:
+- 5.1: Context recall accuracy measurement
+- 5.2: Answer relevance assessment 
+- 5.3: Comparative evaluation between systems
+- 5.4: Performance metrics collection
+- 5.5: Structured evaluation reporting
+- 5.6: Statistical analysis and recommendations
 """
 
 import logging
@@ -12,23 +20,19 @@ import json
 import csv
 import io
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Union, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
 
-# LangChain evaluation imports
-from langchain.evaluation import load_evaluator, EvaluatorType
+from langchain.evaluation import load_evaluator
+from langchain.schema import Document
+from langchain.evaluation import EvaluatorType
 from langchain.evaluation.criteria import Criteria
 from langchain_openai import ChatOpenAI
 
-# Local imports
-try:
-    from ..config.config_manager import ConfigManager
-    from ..persistence.memory_document import MemoryDocument, MemoryType
-except ImportError:
-    # Fallback for when module is imported from outside the package
-    from config.config_manager import ConfigManager
-    from persistence.memory_document import MemoryDocument, MemoryType
+from ..config.config_manager import ConfigManager
+from ..persistence.neo4j_graph_persistence import GraphRAGResult
+from ..persistence.memory_document import MemoryDocument, MemoryType
 
 
 logger = logging.getLogger(__name__)
@@ -532,20 +536,30 @@ class PersistenceEvaluator:
                     # Extract key entities from query for graph traversal
                     key_entities = self._extract_key_entities(query.question)
                     
-                    if key_entities:
-                        # Use first entity as starting point for graph traversal
-                        graph_contexts = graph_persistence.query_context(
-                            entity=key_entities[0],
+                    # Use Graph RAG query for enhanced semantic + graph search
+                    try:
+                        graph_contexts = graph_persistence.graph_rag_query(
+                            query_text=query.question,
                             user_id=query.user_id,
-                            max_depth=2
+                            top_k=3,
+                            graph_depth=2
                         )
-                    else:
-                        # Fallback to entity search if no key entities found
-                        graph_contexts = graph_persistence.search_entities(
-                            search_term=query.question[:20],  # Use first 20 chars as search term
-                            user_id=query.user_id,
-                            limit=3
-                        )
+                    except AttributeError:
+                        # Fallback to traditional methods if Graph RAG not available
+                        if key_entities:
+                            # Use first entity as starting point for graph traversal
+                            graph_contexts = graph_persistence.query_context(
+                                entity=key_entities[0],
+                                user_id=query.user_id,
+                                max_depth=2
+                            )
+                        else:
+                            # Fallback to entity search if no key entities found
+                            graph_contexts = graph_persistence.search_entities(
+                                search_term=query.question[:20],  # Use first 20 chars as search term
+                                user_id=query.user_id,
+                                limit=3
+                            )
                     
                     if include_performance_metrics:
                         query_time = (datetime.now() - start_time).total_seconds()
@@ -596,24 +610,34 @@ class PersistenceEvaluator:
         
         return "\n".join(formatted_results)
     
-    def _format_graph_results(self, contexts: List[Dict[str, Any]]) -> str:
+    def _format_graph_results(self, contexts: List[Any]) -> str:
         """Format graph search results for evaluation."""
         if not contexts:
             return ""
         
         formatted_results = []
         for context in contexts:
-            if 'connected_entity' in context:
-                # Context query result
-                entity = context.get('connected_entity', '')
-                entity_type = context.get('entity_type', '')
-                path_length = context.get('path_length', 0)
-                formatted_results.append(f"{entity} ({entity_type}, depth: {path_length})")
-            elif 'entity_name' in context:
-                # Entity search result
-                entity = context.get('entity_name', '')
-                entity_type = context.get('entity_type', '')
-                formatted_results.append(f"{entity} ({entity_type})")
+            # Handle GraphRAGResult objects (new Graph RAG format)
+            if hasattr(context, 'entity_name') and hasattr(context, 'semantic_score'):
+                # This is a GraphRAGResult object
+                entity = context.entity_name
+                entity_type = context.entity_type
+                semantic_score = getattr(context, 'semantic_score', 0.0)
+                combined_score = getattr(context, 'combined_score', 0.0)
+                formatted_results.append(f"{entity} ({entity_type}, semantic: {semantic_score:.3f}, combined: {combined_score:.3f})")
+            elif isinstance(context, dict):
+                # Handle legacy dictionary format
+                if 'connected_entity' in context:
+                    # Context query result
+                    entity = context.get('connected_entity', '')
+                    entity_type = context.get('entity_type', '')
+                    path_length = context.get('path_length', 0)
+                    formatted_results.append(f"{entity} ({entity_type}, depth: {path_length})")
+                elif 'entity_name' in context:
+                    # Entity search result
+                    entity = context.get('entity_name', '')
+                    entity_type = context.get('entity_type', '')
+                    formatted_results.append(f"{entity} ({entity_type})")
         
         return "\n".join(formatted_results)
     
