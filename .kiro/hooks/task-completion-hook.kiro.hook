@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Task Completion Memory Hook",
+  "description": "Records task completions and spec updates in the memory graph when tasks.md files are modified",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/tasks.md",
+      "**/requirements.md",
+      "**/design.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A spec file has been updated. Please use memory MCP tools to record this project milestone in the persistent memory graph:\n\n**For tasks.md changes:**\n- Identify which tasks were marked as completed (changed from [ ] to [x])\n- Record the task completion as an entity with timestamp and details\n- Link completed tasks to their requirements and design elements\n- Create relationships showing task dependencies and completion order\n\n**For requirements.md or design.md changes:**\n- Record specification updates and refinements\n- Link changes to related tasks and implementation decisions\n- Capture the evolution of project requirements and design\n\n**Memory Graph Structure:**\n- Create entities for: completed tasks, spec updates, milestones, decisions\n- Create relationships: task_completes_requirement, task_implements_design, milestone_achieved\n- Add observations with: completion timestamp, files affected, implementation notes\n\nUse these MCP tools:\n- `mcp_memory_create_entities` for tasks, milestones, and spec changes\n- `mcp_memory_create_relations` to show project progression\n- `mcp_memory_add_observations` for detailed completion context\n\nThis will build a comprehensive project timeline in the memory graph."
+  }
+}

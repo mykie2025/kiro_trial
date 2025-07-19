@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Test Runner Hook",
+  "description": "Automatically runs relevant tests when Python files are saved to provide immediate feedback on code changes",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A Python file has been modified. Please run the relevant tests for this file to provide immediate feedback on the code changes. If this is a source file in the src/ directory, run the corresponding test file. If this is a test file, run that specific test. Use pytest to execute the tests and provide a summary of the results including any failures or errors."
+  }
+}

@@ -1,0 +1,110 @@
+# Cursor AI Rules - Context Persistence Solutions Project
+
+## Project Overview
+This project implements context persistence solutions using LangChain vector storage and Neo4j graph database. The project follows Kiro's spec-driven development approach with structured requirements, design, and task management.
+
+## 🎯 Core Development Philosophy
+Follow the existing Kiro spec-driven approach:
+1. **Requirements First**: Reference `.kiro/specs/context-persistence-solutions/requirements.md` for user stories and acceptance criteria
+2. **Design-Guided**: Follow architecture in `.kiro/specs/context-persistence-solutions/design.md`
+3. **Task-Driven**: Check `.kiro/specs/context-persistence-solutions/tasks.md` for implementation status
+
+## 📁 Project Structure
+```
+src/
+├── config/          # Configuration management
+├── persistence/     # LangChain and memory components  
+├── evaluation/      # Testing and evaluation tools
+└── tools/          # Memory tools and utilities
+
+.kiro/
+├── specs/          # Project specifications (requirements, design, tasks)
+├── hooks/          # Automation hooks for git, testing, etc.
+├── steering/       # AI behavior guidelines
+└── settings/       # MCP server configuration
+```
+
+## 🐍 Python Coding Standards
+- **Type Hints**: Use comprehensive type hints for all functions and classes
+- **Docstrings**: Write detailed docstrings following Google style
+- **Error Handling**: Implement specific exception types and proper error handling
+- **Testing**: Aim for >80% test coverage with pytest
+- **Clean Code**: Follow PEP 8 and use dataclasses for data structures
+
+## 🔧 Key Technologies & Patterns
+- **LangChain**: For vector storage and memory management
+- **OpenAI**: For embeddings and LLM integration
+- **Neo4j**: For graph-based context relationships
+- **Pytest**: For comprehensive testing
+- **Clean Architecture**: Domain-driven design with clear separation
+
+## 📝 Code Generation Guidelines
+
+### When creating new code:
+1. **Check existing specs**: Always reference the requirements and design documents
+2. **Follow established patterns**: Use existing code in `src/` as templates
+3. **Include comprehensive tests**: Write both unit and integration tests
+4. **Add proper logging**: Use structured logging with appropriate levels
+5. **Handle errors gracefully**: Implement proper exception handling and validation
+6. **Documentation policy**: Never create or update README.md files unless explicitly requested by the user
+
+### For LangChain components:
+- Use `InMemoryVectorStore` with OpenAI embeddings
+- Implement user ID filtering for multi-tenant scenarios
+- Include metadata (user_id, timestamp, memory_type) in all memory documents
+- Follow the `MemoryDocument` structure defined in the design
+
+### For Neo4j components:
+- Use parameterized Cypher queries to prevent injection
+- Implement proper connection management and error handling
+- Create meaningful node and relationship structures
+- Include comprehensive logging for query operations
+
+## 🧪 Testing Requirements
+- **Mock external dependencies**: OpenAI API, Neo4j connections
+- **Test both success and failure scenarios**: Include error conditions
+- **Use fixtures appropriately**: Leverage pytest fixtures for setup
+- **Follow existing test patterns**: Reference tests in `test/` directory
+
+## 🔄 Git & Version Control
+- **Use Git MCP**: Leverage `mcp_git_*` tools for all git operations
+- **Smart workflow**: Status → Diff → Add → Commit with proper messages
+- **Commit message format**: Use conventional commits (feat:, fix:, docs:, test:, chore:)
+- **Logical commits**: Group related changes together
+- **Clean history**: Use meaningful commit messages that reference requirements
+- **Review before commit**: Always check diff and validate against specs
+
+## 🚀 Development Workflow
+1. **Understand the requirement**: Check `.kiro/specs/context-persistence-solutions/requirements.md`
+2. **Review the design**: Reference `.kiro/specs/context-persistence-solutions/design.md`
+3. **Check task status**: Look at `.kiro/specs/context-persistence-solutions/tasks.md`
+4. **Implement incrementally**: Follow the established task breakdown
+5. **Test thoroughly**: Write tests before and during implementation
+6. **Update documentation**: Keep specs and docstrings current
+
+## ⚡ Quick References
+- **Config Management**: See `src/config/config_manager.py` for environment handling
+- **Memory Tools**: Reference `src/tools/memory_tools.py` for existing patterns
+- **Test Examples**: Check `test/` directory for testing patterns
+- **Project Standards**: Full guidelines in `.kiro/steering/project-standards.md`
+
+## 🎯 Current Project Focus
+Based on the task status, the project is mostly complete with LangChain implementation. Priority areas:
+- Completing example demonstrations
+- Enhancing Neo4j integration
+- Improving test coverage and error handling
+- Adding comprehensive documentation
+
+## 🧠 Memory & Context Management
+- **Use Memory MCP**: Leverage `mcp_memory_*` tools to build persistent project context
+- **Track Development**: The memory tracking hook automatically records file changes and decisions
+- **Query Memory**: Use `mcp_memory_search_nodes` to find related context when working on features
+- **Build Relationships**: Create connections between requirements, code, tests, and decisions
+
+## 💡 Development Tips
+- **Start small**: Implement one feature at a time following the task breakdown
+- **Reference existing code**: Use patterns from implemented components
+- **Test early**: Write tests alongside implementation
+- **Document as you go**: Update docstrings and comments
+- **Follow the specs**: The requirements and design documents are your source of truth
+- **Use memory context**: Query memory MCP to understand previous decisions and related work 

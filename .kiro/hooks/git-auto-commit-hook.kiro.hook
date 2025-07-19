@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "name": "Git Auto-Commit Hook - Development Changes",
+  "description": "Automatically handles git operations for development changes, including adding files, creating proper commit messages, and maintaining repository hygiene",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.py",
+      "*.md",
+      "*.json",
+      "*.yaml",
+      "*.yml",
+      "*.txt",
+      "*.sh"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Development files have been modified. Please use git MCP tools to manage version control:\n\n**Git Management Tasks:**\n\n1. **Status Check**: Use `mcp_git_git_status` to see current repository state\n\n2. **Smart File Addition**: \n   - Add modified source files, tests, documentation, and configuration\n   - Skip cache files, temporary files, and build artifacts\n   - Use `mcp_git_git_add` for each logical group of files\n\n3. **Intelligent Commits**:\n   - Group related changes into logical commits\n   - Use conventional commit messages (feat:, fix:, docs:, test:, chore:)\n   - Commit files one by one with descriptive messages using `mcp_git_git_commit`\n\n4. **Repository Hygiene**:\n   - Ensure .gitignore exists and covers Python cache files, IDE files, OS files\n   - Remove any accidentally tracked cache or temporary files\n   - Maintain clean working directory\n\n**Commit Message Examples:**\n- `feat: implement new memory storage functionality`\n- `test: add comprehensive unit tests for persistence layer`\n- `docs: update project documentation with implementation details`\n- `fix: resolve configuration validation issues`\n- `chore: update dependencies and project configuration`\n\n**Only commit if there are meaningful changes** - don't create empty commits or commit only cache files.\n\nThis ensures proper version control practices and maintains a clean, well-documented git history."
+  }
+}
